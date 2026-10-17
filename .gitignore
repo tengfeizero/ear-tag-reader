@@ -1,0 +1,20 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# 运行时数据（识别记录，含业务数据，不入库）
+*.csv
+!ear_tag_records.example.csv
+
+# 本地 AI 工作记忆 / 编辑器杂项
+.workbuddy/
+.DS_Store
+.idea/
+.vscode/

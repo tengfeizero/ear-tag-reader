@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>猪耳标识别</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #111; color: #fff; min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .container {
+    width: 100%; max-width: 480px; padding: 16px;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 16px;
+  }
+  h1 { font-size: 22px; margin-top: 8px; text-align: center; }
+
+  /* 摄像头预览 */
+  .camera-box {
+    width: 100%; aspect-ratio: 4/3; position: relative;
+    background: #222; border-radius: 12px; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .camera-box video {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+  .camera-box canvas {
+    display: none;
+  }
+  .placeholder {
+    color: #666; font-size: 14px; text-align: center;
+  }
+  .hint-line {
+    position: absolute; top: 50%; left: 10%; right: 10%;
+    border: 2px dashed rgba(255, 200, 0, 0.5);
+    pointer-events: none;
+  }
+  .hint-text {
+    position: absolute; bottom: 8px; left: 0; right: 0;
+    text-align: center; color: rgba(255,255,255,0.6);
+    font-size: 12px;
+  }
+
+  /* 文件上传隐藏 */
+  #fileInput { display: none; }
+
+  /* 按钮组 */
+  .btn-row {
+    display: flex; flex-direction: column; gap: 8px; width: 100%;
+  }
+  .btn-group {
+    display: flex; gap: 12px; width: 100%;
+  }
+  .btn {
+    flex: 1; padding: 14px 0; border: none; border-radius: 10px;
+    font-size: 16px; font-weight: 600; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn-primary { background: #ffc107; color: #111; }
+  .btn-primary:disabled { background: #555; color: #888; }
+  .btn-secondary { background: #333; color: #fff; border: 1px solid #555; }
+  .btn-upload { background: #2a2a2a; color: #aaa; border: 1px dashed #555; }
+  .btn-upload:hover { border-color: #ffc107; color: #fff; }
+
+  /* 结果区域 */
+  .result-box {
+    width: 100%; padding: 16px; border-radius: 12px;
+    background: #1a1a1a; border: 1px solid #333;
+    display: none; flex-direction: column; gap: 8px;
+  }
+  .result-box.show { display: flex; }
+  .result-label { font-size: 12px; color: #888; }
+  .result-text {
+    font-size: 28px; font-weight: bold; text-align: center;
+    color: #ffc107; letter-spacing: 2px;
+  }
+  .result-meta { font-size: 12px; color: #666; text-align: center; }
+  .result-error {
+    font-size: 14px; color: #ff6b6b; text-align: center;
+  }
+  .download-link {
+    display: inline-block; margin-top: 8px; padding: 8px 16px;
+    color: #ffc107; text-decoration: none; font-size: 13px;
+    border: 1px solid #ffc107; border-radius: 8px; text-align: center;
+  }
+  .download-link:hover { background: #ffc107; color: #111; }
+
+  /* 识别中动画 */
+  .spinner {
+    display: none; width: 100%; text-align: center; padding: 20px;
+  }
+  .spinner.show { display: block; }
+  .spinner-dot {
+    display: inline-block; width: 10px; height: 10px; margin: 0 4px;
+    background: #ffc107; border-radius: 50%;
+    animation: bounce 1.2s ease-in-out infinite;
+  }
+  .spinner-dot:nth-child(2) { animation-delay: 0.2s; }
+  .spinner-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+    40% { transform: scale(1); opacity: 1; }
+  }
+
+  /* 拍照反馈 */
+  .flash {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: #fff; opacity: 0; pointer-events: none;
+    transition: opacity 0.15s;
+  }
+  .flash.active { opacity: 0.5; transition: opacity 0s; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🐷 耳标识别</h1>
+
+  <!-- 摄像头 -->
+  <div class="camera-box" id="cameraBox">
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+    <div class="placeholder" id="placeholder">
+      <div style="font-size:40px;margin-bottom:8px">📷</div>
+      点击下方"打开摄像头"
+    </div>
+    <div class="hint-line" id="hintLine"></div>
+    <div class="hint-text" id="hintText">对准耳标，保持清晰</div>
+    <div class="flash" id="flash"></div>
+  </div>
+
+  <!-- 按钮 -->
+  <div class="btn-row">
+    <div class="btn-group">
+      <button class="btn btn-secondary" id="btnToggle">打开摄像头</button>
+      <button class="btn btn-primary" id="btnCapture" disabled>拍照识别</button>
+    </div>
+    <input type="file" id="fileInput" accept="image/*">
+    <button class="btn btn-upload" id="btnUpload">📁 选择图片上传识别</button>
+  </div>
+
+  <!-- 加载动画 -->
+  <div class="spinner" id="spinner">
+    <span class="spinner-dot"></span>
+    <span class="spinner-dot"></span>
+    <span class="spinner-dot"></span>
+    <div style="margin-top:8px;color:#888;font-size:13px">正在识别...</div>
+  </div>
+
+  <!-- 结果 -->
+  <div class="result-box" id="resultBox">
+    <div class="result-label">识别结果</div>
+    <div class="result-text" id="resultText">--</div>
+    <div class="result-meta" id="resultMeta"></div>
+    <div class="result-error" id="resultError"></div>
+    <a class="download-link" id="downloadLink" href="/api/download" download style="display:none">📥 下载识别记录 (CSV)</a>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const video = $('video');
+const canvas = $('canvas');
+const placeholder = $('placeholder');
+const btnToggle = $('btnToggle');
+const btnCapture = $('btnCapture');
+const spinner = $('spinner');
+const resultBox = $('resultBox');
+const resultText = $('resultText');
+const resultMeta = $('resultMeta');
+const resultError = $('resultError');
+const downloadLink = $('downloadLink');
+const flash = $('flash');
+const hintLine = $('hintLine');
+const hintText = $('hintText');
+const fileInput = $('fileInput');
+const btnUpload = $('btnUpload');
+
+let stream = null;
+let cameraOn = false;
+
+// ---- 摄像头控制 ----
+async function toggleCamera() {
+  if (cameraOn) {
+    stopCamera();
+    return;
+  }
+  try {
+    // 优先使用后置摄像头（耳标通常在猪耳朵上，后置更实用）
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 960 } },
+      audio: false,
+    });
+    video.srcObject = stream;
+    await video.play();
+    cameraOn = true;
+    placeholder.style.display = 'none';
+    video.style.display = 'block';
+    btnToggle.textContent = '关闭摄像头';
+    btnCapture.disabled = false;
+    hintLine.style.display = 'block';
+    hintText.style.display = 'block';
+  } catch (err) {
+    alert('摄像头访问失败: ' + err.message + '\n请确保已授予摄像头权限，并使用 HTTPS 或 localhost 访问。');
+  }
+}
+
+function stopCamera() {
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+  cameraOn = false;
+  video.style.display = 'none';
+  placeholder.style.display = 'block';
+  btnToggle.textContent = '打开摄像头';
+  btnCapture.disabled = true;
+  hintLine.style.display = 'none';
+  hintText.style.display = 'none';
+}
+
+// ---- 通用：提交图片到后端识别 ----
+async function recognizeImage(blob, fileName) {
+  spinner.classList.add('show');
+  resultBox.classList.remove('show');
+  btnCapture.disabled = true;
+  btnUpload.disabled = true;
+
+  try {
+    const formData = new FormData();
+    formData.append('file', blob, fileName);
+
+    const res = await fetch('/api/recognize', { method: 'POST', body: formData });
+    const json = await res.json();
+
+    if (json.code === 0 && json.data.text) {
+      resultText.textContent = json.data.text;
+      resultMeta.textContent = `识别耗时 ${json.data.cost_ms}ms`;
+      resultError.textContent = '';
+      downloadLink.style.display = 'inline-block';
+    } else {
+      resultText.textContent = '--';
+      resultMeta.textContent = '';
+      resultError.textContent = json.data?.all_texts?.length > 0
+        ? '未识别到有效耳标编号，请重试'
+        : '未识别到文字，请对准耳标并保持光线充足';
+      downloadLink.style.display = 'none';
+    }
+    resultBox.classList.add('show');
+  } catch (err) {
+    resultText.textContent = '--';
+    resultMeta.textContent = '';
+    resultError.textContent = '网络请求失败: ' + err.message;
+    resultBox.classList.add('show');
+  } finally {
+    spinner.classList.remove('show');
+    btnCapture.disabled = !cameraOn;
+    btnUpload.disabled = false;
+  }
+}
+
+// ---- 拍照识别 ----
+async function captureAndRecognize() {
+  if (!cameraOn) return;
+
+  flash.classList.add('active');
+  setTimeout(() => flash.classList.remove('active'), 150);
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+  recognizeImage(blob, 'ear_tag.jpg');
+}
+
+// ---- 文件上传 ----
+btnUpload.addEventListener('click', () => fileInput.click());
+
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files[0];
+  if (!file) return;
+
+  // 在预览区显示选中的图片
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    placeholder.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:contain">`;
+    placeholder.style.display = 'flex';
+    placeholder.style.alignItems = 'center';
+    placeholder.style.justifyContent = 'center';
+    placeholder.style.padding = '0';
+
+    // 如果摄像头开着，拍照按钮可用；否则就只显示图片
+    hintLine.style.display = 'none';
+    hintText.textContent = '已选择图片，点击"选择图片"更换';
+  };
+  reader.readAsDataURL(file);
+
+  // 如果有摄像头开着，先关闭
+  if (cameraOn) stopCamera();
+
+  recognizeImage(file, file.name);
+  fileInput.value = ''; // 允许重复选同一文件
+});
+
+// ---- 事件绑定 ----
+btnToggle.addEventListener('click', toggleCamera);
+btnCapture.addEventListener('click', captureAndRecognize);
+
+// 页面离开时关闭摄像头
+window.addEventListener('beforeunload', stopCamera);
+</script>
+</body>
+</html>

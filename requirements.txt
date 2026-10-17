@@ -1,0 +1,8 @@
+# 基础依赖
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9
+pillow>=10.0
+openai>=1.0.0
+
+# LM Studio 后端调用视觉大模型，无需额外 OCR 库

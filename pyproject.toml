@@ -1,0 +1,15 @@
+[project]
+name = "ear-tag-reader"
+version = "0.1.0"
+description = "猪耳标编号识别系统"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+authors = [{ name = "ztf3 Authors" }]
+keywords = ["ear-tag", "vlm", "fastapi", "lm-studio", "ocr"]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.12",
+    "Framework :: FastAPI",
+]
+
